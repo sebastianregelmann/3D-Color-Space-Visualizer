@@ -1,23 +1,11 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine;
-using System.Collections;
 using System.IO;
 using SFB;
-using System.Runtime.CompilerServices; // StandaloneFileBrowser namespace
-
 public static class TextureLoader
 {
     public static bool textureLoaded = false;
     public static Texture2D texture = null;
-   // void Update()
-   // {
-   //     if (Input.GetButtonDown("Jump"))
-   //     {
-   //         LoadTexture();
-   //     }
-   // }
+
     public static void LoadTexture()
     {
         var extensions = new[] {
