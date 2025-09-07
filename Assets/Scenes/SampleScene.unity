@@ -326,7 +326,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c0ddf5a6bf0f6874196be0cd4d8f6b26, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  texture: {fileID: 0}
+  computeShader: {fileID: 7200000, guid: 2f3c51c95888f8c468a94c7af729d06b, type: 3}
+  inputTexture: {fileID: 0}
+  instancedMaterial: {fileID: 2100000, guid: fc5d3b05168219f4080bcca1db37e03b, type: 2}
+  sphereMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+  scale: 0.1
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
