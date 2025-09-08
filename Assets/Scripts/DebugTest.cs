@@ -8,12 +8,18 @@ public class DebugTest : MonoBehaviour
     public ComputeShader computeShader;
     public Texture2D inputTexture;
     public Material instancedMaterial;
-    public Mesh sphereMesh;
+    public Mesh mesh;
 
     private bool imageLoaded = false;
 
     [Header("Settings")]
     public float scale = 0.1f;
+
+    public float animationTime;
+    private float timer = 0f;
+    private float _t = 0f;
+    public bool startAnimation = false;
+    private bool animationRunning = false;
 
 
     //Compute Buffers
@@ -21,6 +27,8 @@ public class DebugTest : MonoBehaviour
     private ComputeBuffer RGBMapBuffer;
     private ComputeBuffer RGBCountBuffer;
     private ComputeBuffer uniqueRGBBuffer;
+    private ComputeBuffer imageValuesBuffer;
+
     private ComputeBuffer countBuffer;
 
     private ComputeBuffer targetPositionsRGBBuffer;
@@ -34,6 +42,8 @@ public class DebugTest : MonoBehaviour
     private int kernelInitRGBMap;
     private int kernelWriteRGBMap;
     private int kernelFilterRGBMap;
+    private int kernelInitMovementRGB;
+    private int kernelMovePositionsRGB;
 
     private int width, height, totalPixels;
     private int resultCount;
@@ -55,6 +65,8 @@ public class DebugTest : MonoBehaviour
         kernelInitRGBMap = computeShader.FindKernel("InitRGBMap");
         kernelWriteRGBMap = computeShader.FindKernel("WriteToRGBMap");
         kernelFilterRGBMap = computeShader.FindKernel("FilterRGBMap");
+        kernelInitMovementRGB = computeShader.FindKernel("InitMovementBufferRGB");
+        kernelMovePositionsRGB = computeShader.FindKernel("MovePositionsRGB");
     }
     void Update()
     { // Load texture 
@@ -92,6 +104,10 @@ public class DebugTest : MonoBehaviour
                     //Read back the number of unique RGB Values
                     GetUniqueColorCount();
                     Debug.Log("Unique RGB Colors: " + uniqueColorCount);
+
+                    InitMovementBuffer();
+                    Debug.Log("Init Movement Buffer");
+
                     imageLoaded = true;
                 }
                 else { throw new Exception("No Error at texture load but boolean not set"); }
@@ -111,6 +127,15 @@ public class DebugTest : MonoBehaviour
         }
 
 
+        Animate();
+
+        // Then move positions using the updated _t
+        if (animationRunning)
+        {
+            MovePositionsRGB();
+        }
+
+        // Render spheres
         RenderSpheres();
     }
 
@@ -126,19 +151,19 @@ public class DebugTest : MonoBehaviour
         }
 
         //Send data to gpu
-        instancedMaterial.SetBuffer("_InstanceData", uniqueRGBBuffer);
+        instancedMaterial.SetBuffer("_InstanceData", currentDataRGBBuffer);
         instancedMaterial.SetFloat("_Scale", scale);
 
         // Arguments buffer for DrawMeshInstancedIndirect
         if (argsBuffer == null)
         {
-            uint[] args = new uint[5] { sphereMesh.GetIndexCount(0), (uint)uniqueColorCount, 0, 0, 0 };
+            uint[] args = new uint[5] { mesh.GetIndexCount(0), (uint)uniqueColorCount, 0, 0, 0 };
             argsBuffer = new ComputeBuffer(1, args.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
             argsBuffer.SetData(args);
         }
 
         Graphics.DrawMeshInstancedIndirect(
-            sphereMesh,
+            mesh,
             0,
             instancedMaterial,
             new Bounds(Vector3.zero, Vector3.one * 1000f),
@@ -218,10 +243,73 @@ public class DebugTest : MonoBehaviour
     }
 
 
-    private void InitWorkingBuffer()
+
+    private void InitMovementBuffer()
     {
-    
+        //Create the new Buffers
+        currentDataRGBBuffer = new ComputeBuffer(uniqueColorCount, sizeof(float) * 4 + sizeof(float) * 3 + sizeof(int));
+        targetPositionsRGBBuffer = new ComputeBuffer(uniqueColorCount, sizeof(float) * 3);
+
+        //Send Buffer and variables to GPU
+        computeShader.SetBuffer(kernelInitMovementRGB, "_TargetPositions", targetPositionsRGBBuffer);
+        computeShader.SetBuffer(kernelInitMovementRGB, "_CurrentData", currentDataRGBBuffer);
+        computeShader.SetBuffer(kernelInitMovementRGB, "_RGBCounts", countBuffer);
+        computeShader.SetBuffer(kernelInitMovementRGB, "_UniqueRGBRead", uniqueRGBBuffer);
+
+
+        //Dispatch the shader
+        int threadSize = Mathf.CeilToInt(uniqueColorCount / 512f);
+        computeShader.Dispatch(kernelInitMovementRGB, threadSize, 1, 1);
     }
+
+
+    private void MovePositionsRGB()
+    {
+        //Send Buffer and variables to GPU
+        computeShader.SetBuffer(kernelMovePositionsRGB, "_TargetPositions", targetPositionsRGBBuffer);
+        computeShader.SetBuffer(kernelMovePositionsRGB, "_CurrentData", currentDataRGBBuffer);
+        computeShader.SetBuffer(kernelMovePositionsRGB, "_RGBCounts", countBuffer);
+        computeShader.SetBuffer(kernelMovePositionsRGB, "_UniqueRGBRead", uniqueRGBBuffer);
+        computeShader.SetFloat("_T", _t);
+        Debug.Log("TIme Value: " + _t);
+
+        //Dispatch the shader
+        int threadSize = Mathf.CeilToInt(uniqueColorCount / 512f);
+        computeShader.Dispatch(kernelMovePositionsRGB, threadSize, 1, 1);
+    }
+
+    private void Animate()
+    {
+        if (imageLoaded == false)
+        {
+            return;
+        }
+
+
+        if (startAnimation)
+        {
+            animationRunning = true;
+            startAnimation = false;
+            timer = 0;
+            _t = 0;
+        }
+
+        if (animationRunning)
+        {
+            //Check if last animation step was final one
+            if (_t >= 1f)
+            {
+                animationRunning = false;
+            }
+
+            //Calculate _t
+            _t = Mathf.Clamp01(timer / animationTime);
+
+            timer += Time.deltaTime;
+        }
+
+    }
+
 
     private void ReadDataFromGPU()
     {
@@ -229,12 +317,19 @@ public class DebugTest : MonoBehaviour
         uint[] colorCount = new uint[255 * 255 * 255];
         Data[] uniqueColors = new Data[uniqueColorCount];
         Data[] positions = new Data[width * height];
+        Data[] currentData = new Data[uniqueColorCount];
+        Vector3[] targets = new Vector3[uniqueColorCount];
 
 
         RGBMapBuffer.GetData(RGBMapData);
         RGBCountBuffer.GetData(colorCount);
         uniqueRGBBuffer.GetData(uniqueColors);
         allDataBuffer.GetData(positions);
+        currentDataRGBBuffer.GetData(currentData);
+        targetPositionsRGBBuffer.GetData(targets);
+
+        Debug.Log("read finished");
+
     }
 
 

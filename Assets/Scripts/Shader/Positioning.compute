@@ -20,7 +20,7 @@ RWStructuredBuffer<uint> _RGBCounts; //Number of Colors in _AllData that have th
 AppendStructuredBuffer<Data> _UniqueRGB;
 RWStructuredBuffer<float3> _TargetPositions;
 RWStructuredBuffer<Data> _CurrentData;
-
+StructuredBuffer<Data> _UniqueRGBRead;
 // Variables for all kernels
 uint _Width;
 uint _Height;
@@ -147,7 +147,7 @@ void FilterRGBMap (uint3 id : SV_DispatchThreadID)
 void InitMovementBufferRGB (uint3 id : SV_DispatchThreadID)
 {
     uint index = id.x;
-    uint uniqueCount = _UniqueRGB.GetNumElements();
+    uint uniqueCount = _RGBCounts[0]; //Read how many values are in _UniqueRGBRead
 
     if (index >= uniqueCount)
     {
@@ -156,15 +156,15 @@ void InitMovementBufferRGB (uint3 id : SV_DispatchThreadID)
 
 
     //Init the Target Position Buffer
-    _TargetPositions[idnex] = float3(0, 0, 0);
+    _TargetPositions[index] = float3(1, 1, 1);
 
-    Data data = _UniqueRGB[index];
+    Data data = _UniqueRGBRead[index];
 
     //Copy the data to the other Buffer
     Data currentData;
-    unique.color = data.color;
-    unique.position = data.position;
-    unique.count = data.count;
+    currentData.color = data.color;
+    currentData.position = data.position;
+    currentData.count = data.count;
     _CurrentData[index] = currentData;
 }
 
@@ -173,7 +173,7 @@ void InitMovementBufferRGB (uint3 id : SV_DispatchThreadID)
 void MovePositionsRGB (uint3 id : SV_DispatchThreadID)
 {
     uint index = id.x;
-    uint uniqueCount = _UniqueRGB.GetNumElements();
+    uint uniqueCount = _RGBCounts[0]; //Read how many values are in _UniqueRGBRead
 
     if (index >= uniqueCount)
     {
@@ -181,14 +181,15 @@ void MovePositionsRGB (uint3 id : SV_DispatchThreadID)
     }
 
     float3 target = _TargetPositions[index];
+    float3 origin = _UniqueRGBRead[index].position;
 
     //Get the data
     Data data = _CurrentData[index];
     //Update the position
-    float3 newPosition = lerp(data.position, target, _T);
+    float3 newPosition = lerp(origin, target, _T);
 
     Data updatedData;
-    updatedData.color = data.color;
+    updatedData.color = float4(newPosition.rgb, 1);
     updatedData.position = newPosition;
     updatedData.count = data.count;
 
