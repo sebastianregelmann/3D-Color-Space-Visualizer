@@ -2,11 +2,11 @@ Shader "Custom/InstancedSpheres"
 {
     Properties
     {
-        _BaseColor("Base Color", Color) = (1,1,1,1)
+        _BaseColor("Base Color", Color) = (1, 1, 1, 1)
     }
     SubShader
     {
-        Tags { "RenderType"="Opaque" }
+        Tags { "RenderType" = "Opaque" }
         Pass
         {
             HLSLPROGRAM
@@ -41,8 +41,9 @@ Shader "Custom/InstancedSpheres"
             {
                 v2f o;
                 Data d = _InstanceData[v.instanceID];
-                float3 scaledPos = v.vertex * d.count * _Scale + d.position;
-                o.pos = UnityObjectToClipPos(float4(scaledPos,1.0));
+                float scale = log10(d.count + 1) * _Scale;
+                float3 scaledPos = v.vertex * scale + d.position;
+                o.pos = UnityObjectToClipPos(float4(scaledPos, 1.0));
                 o.color = d.color;
                 return o;
             }

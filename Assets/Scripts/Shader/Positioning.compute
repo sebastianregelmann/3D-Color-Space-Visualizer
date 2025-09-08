@@ -1,6 +1,9 @@
 #pragma kernel WritePositionsRGB
-#pragma kernel CombineDublicatesRGB
-
+#pragma kernel InitRGBMap
+#pragma kernel WriteToRGBMap
+#pragma kernel FilterRGBMap
+#pragma kernel InitMovementBufferRGB
+#pragma kernel MovePositionsRGB
 // Inputs
 Texture2D<float4> _Texture;
 
@@ -12,13 +15,19 @@ struct Data{
 
 // Outputs
 RWStructuredBuffer<Data> _AllData; // Size is _Width * _Height
-AppendStructuredBuffer<Data> _CombinedData;
+RWStructuredBuffer<Data> _RGBMap; //255 * 255 * 255 entry for each RGB Value
+RWStructuredBuffer<uint> _RGBCounts; //Number of Colors in _AllData that have the same value size is also 255*255*255
+AppendStructuredBuffer<Data> _UniqueRGB;
+RWStructuredBuffer<float3> _TargetPositions;
+RWStructuredBuffer<Data> _CurrentData;
 
 // Variables for all kernels
 uint _Width;
 uint _Height;
+float _T;
 
-[numthreads(8,8,1)]
+
+[numthreads(32, 32, 1)]
 void WritePositionsRGB (uint3 id : SV_DispatchThreadID)
 {
     // Exit early if outside bounds
@@ -44,43 +53,145 @@ void WritePositionsRGB (uint3 id : SV_DispatchThreadID)
 }
 
 
-[numthreads(64,1,1)]
-void CombineDublicatesRGB (uint3 id : SV_DispatchThreadID)
+
+
+
+
+[numthreads(8,8,8)]
+void InitRGBMap (uint3 id : SV_DispatchThreadID)
+{
+    uint3 index = id.xyz;
+    if(index.r >= 255 || index.g >= 255 || index.b >= 255)
+    {
+        return;
+    }
+
+    //Convert thrad index into a linear index based on the RGB Values
+    uint colorIndex = index.b * 255 * 255 + index.g * 255 + index.r;
+
+    float4 color = float4(float(index.r) / 255.0, float(index.g) / 255.0, float(index.b) / 255.0, 1.0);
+    float3 position = color.rgb;
+    float count = 0;
+
+    Data data;
+    data.color = color;
+    data.position = position;
+    data.count = 0;
+
+    _RGBMap[colorIndex] = data; //Set Data
+    _RGBCounts[colorIndex] = 0; // Reset count
+
+}
+
+[numthreads(512,1,1)]
+void WriteToRGBMap (uint3 id : SV_DispatchThreadID)
 {
     uint index = id.x;
     uint total = _Width * _Height;
 
     if (index >= total)
+    {
         return;
-
-    Data current = _AllData[index];
-    float3 color = current.color;
-
-    // Step 1: Check for duplicate earlier in list
-    for (uint i = 0; i < index; i++)
-    {
-        if (all(_AllData[i].color.rgb == color))
-        {
-            // Duplicate found earlier, skip this one
-            return;
-        }
     }
 
-    // Step 2: Count occurrences of this color in entire buffer
-    int count = 0;
-    for (uint i = 0; i < total; i++)
+
+    //Get the Data from the _AllData Buffer
+    Data data = _AllData[index];
+
+    //Get the index from the color
+    int r = int(ceil(data.color.r * 255));
+    int g = int(ceil(data.color.g * 255));
+    int b = int(ceil(data.color.b * 255));
+
+    int colorIndex = b * 255 * 255 + g * 255 + r;
+
+    //Atomic Add to increase the counter of _RGBMap by one at the colorIndex
+    uint tmp;
+    InterlockedAdd(_RGBCounts[colorIndex], 1, tmp);
+}
+
+
+[numthreads(8,8,8)]
+void FilterRGBMap (uint3 id : SV_DispatchThreadID)
+{
+
+    uint3 index = id.xyz;
+    if(index.r >= 255 || index.g >= 255 || index.b >= 255)
     {
-        if (all(_AllData[i].color.rgb == color))
-        {
-            count++;
-        }
+        return;
     }
 
-    // Step 3: Create unique data entry
+    //Convert thrad index into a linear index based on the RGB Values
+    uint colorIndex = index.b * 255 * 255 + index.g * 255 + index.r;
+
+    Data data = _RGBMap[colorIndex];
+    uint count = _RGBCounts[colorIndex];
+
+    //If data is not Present Skip it
+    if(count <= 0)
+    {
+        return;
+    }
+
+    //Save the unique Data
     Data unique;
-    unique.color = current.color;
-    unique.position = color;
+    unique.color = data.color;
+    unique.position = data.position;
     unique.count = count;
 
-    _CombinedData.Append(unique);
+    _UniqueRGB.Append(unique);
+}
+
+
+[numthreads(512,1,1)]
+void InitMovementBufferRGB (uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    uint uniqueCount = _UniqueRGB.GetNumElements();
+
+    if (index >= uniqueCount)
+    {
+        return;
+    }
+
+
+    //Init the Target Position Buffer
+    _TargetPositions[idnex] = float3(0, 0, 0);
+
+    Data data = _UniqueRGB[index];
+
+    //Copy the data to the other Buffer
+    Data currentData;
+    unique.color = data.color;
+    unique.position = data.position;
+    unique.count = data.count;
+    _CurrentData[index] = currentData;
+}
+
+
+[numthreads(512,1,1)]
+void MovePositionsRGB (uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    uint uniqueCount = _UniqueRGB.GetNumElements();
+
+    if (index >= uniqueCount)
+    {
+        return;
+    }
+
+    float3 target = _TargetPositions[index];
+
+    //Get the data
+    Data data = _CurrentData[index];
+    //Update the position
+    float3 newPosition = lerp(data.position, target, _T);
+
+    Data updatedData;
+    updatedData.color = data.color;
+    updatedData.position = newPosition;
+    updatedData.count = data.count;
+
+    //Save the updated Data
+    _CurrentData[index] = updatedData;
 }

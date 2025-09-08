@@ -181,7 +181,7 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
+  near clip plane: 0.01
   far clip plane: 1000
   field of view: 35.1
   orthographic: 0
@@ -275,7 +275,7 @@ MonoBehaviour:
   target: {fileID: 1763908832}
   distance: 3
   zoomSpeed: 2
-  minDistance: 0.1
+  minDistance: 0.01
   maxDistance: 3
   rotationSpeed: 1.5
   panSpeed: 0.025
