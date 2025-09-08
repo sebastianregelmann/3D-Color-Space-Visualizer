@@ -23,12 +23,9 @@ public class DebugTest : MonoBehaviour
 
 
     //Compute Buffers
-    private ComputeBuffer allDataBuffer;
     private ComputeBuffer RGBMapBuffer;
     private ComputeBuffer RGBCountBuffer;
     private ComputeBuffer uniqueRGBBuffer;
-    private ComputeBuffer imageValuesBuffer;
-
     private ComputeBuffer countBuffer;
 
     private ComputeBuffer targetPositionsRGBBuffer;
@@ -37,8 +34,6 @@ public class DebugTest : MonoBehaviour
 
 
     private int uniqueColorCount;
-
-    private int kernelWritePositions;
     private int kernelInitRGBMap;
     private int kernelWriteRGBMap;
     private int kernelFilterRGBMap;
@@ -61,7 +56,6 @@ public class DebugTest : MonoBehaviour
     {
         if (computeShader == null) return;
 
-        kernelWritePositions = computeShader.FindKernel("WritePositionsRGB");
         kernelInitRGBMap = computeShader.FindKernel("InitRGBMap");
         kernelWriteRGBMap = computeShader.FindKernel("WriteToRGBMap");
         kernelFilterRGBMap = computeShader.FindKernel("FilterRGBMap");
@@ -84,10 +78,6 @@ public class DebugTest : MonoBehaviour
                     // //Release the old Buffers 
                     ReleaseAllBuffers();
                     Debug.Log("Buffers Released");
-
-                    // /Write the positions 
-                    WritePositionsRGB();
-                    Debug.Log("Positions Written");
 
                     //Init the RGB Map
                     InitRGBMap();
@@ -171,21 +161,6 @@ public class DebugTest : MonoBehaviour
         );
     }
 
-    private void WritePositionsRGB()
-    {
-        //Create new Buffer to write to
-        allDataBuffer = new ComputeBuffer(totalPixels, sizeof(float) * 4 + sizeof(float) * 3 + sizeof(int));
-
-        //Assign variables and Buffers for shader
-        computeShader.SetTexture(kernelWritePositions, "_Texture", inputTexture);
-        computeShader.SetInt("_Width", width);
-        computeShader.SetInt("_Height", height);
-        computeShader.SetBuffer(kernelWritePositions, "_AllData", allDataBuffer);
-
-        //Dispatch the shader
-        computeShader.Dispatch(kernelWritePositions, Mathf.CeilToInt(width / 32f), Mathf.CeilToInt(height / 32f), 1);
-    }
-
     private void InitRGBMap()
     {
         //Create the Buffer
@@ -205,7 +180,7 @@ public class DebugTest : MonoBehaviour
     {
         //Assing Variables and Buffers for shader
         computeShader.SetBuffer(kernelWriteRGBMap, "_RGBCounts", RGBCountBuffer);
-        computeShader.SetBuffer(kernelWriteRGBMap, "_AllData", allDataBuffer);
+        computeShader.SetTexture(kernelWriteRGBMap, "_Texture", inputTexture);
         computeShader.SetInt("_Width", width);
         computeShader.SetInt("_Height", height);
 
@@ -324,7 +299,6 @@ public class DebugTest : MonoBehaviour
         RGBMapBuffer.GetData(RGBMapData);
         RGBCountBuffer.GetData(colorCount);
         uniqueRGBBuffer.GetData(uniqueColors);
-        allDataBuffer.GetData(positions);
         currentDataRGBBuffer.GetData(currentData);
         targetPositionsRGBBuffer.GetData(targets);
 
@@ -335,12 +309,13 @@ public class DebugTest : MonoBehaviour
 
     void ReleaseAllBuffers()
     {
-        allDataBuffer?.Release();
         RGBCountBuffer?.Release();
         RGBMapBuffer?.Release();
         uniqueRGBBuffer?.Release();
         argsBuffer?.Release();
         countBuffer?.Release();
+        targetPositionsRGBBuffer?.Release();
+        currentDataRGBBuffer?.Release();
     }
 
     void OnDestroy()

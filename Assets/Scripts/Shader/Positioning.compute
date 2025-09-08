@@ -1,4 +1,3 @@
-#pragma kernel WritePositionsRGB
 #pragma kernel InitRGBMap
 #pragma kernel WriteToRGBMap
 #pragma kernel FilterRGBMap
@@ -14,7 +13,6 @@ struct Data{
 };
 
 // Outputs
-RWStructuredBuffer<Data> _AllData; // Size is _Width * _Height
 RWStructuredBuffer<Data> _RGBMap; //255 * 255 * 255 entry for each RGB Value
 RWStructuredBuffer<uint> _RGBCounts; //Number of Colors in _AllData that have the same value size is also 255*255*255
 AppendStructuredBuffer<Data> _UniqueRGB;
@@ -25,34 +23,6 @@ StructuredBuffer<Data> _UniqueRGBRead;
 uint _Width;
 uint _Height;
 float _T;
-
-
-[numthreads(32, 32, 1)]
-void WritePositionsRGB (uint3 id : SV_DispatchThreadID)
-{
-    // Exit early if outside bounds
-    if (id.x >= _Width || id.y >= _Height)
-    {
-        return;
-    }
-
-    // Sample color from texture
-    float4 color = _Texture[id.xy].rgba;
-
-    //Create a Data element of the color
-    Data data;
-    data.color = color;
-    data.position = color.rgb;
-    data.count = 1;
-
-    // Calculate 1D index into buffer
-    int index = id.y * _Width + id.x;
-
-    // Store RGB values into buffer
-    _AllData[index] = data;
-}
-
-
 
 
 
@@ -76,32 +46,35 @@ void InitRGBMap (uint3 id : SV_DispatchThreadID)
     Data data;
     data.color = color;
     data.position = position;
-    data.count = 0;
+    data.count = count;
 
     _RGBMap[colorIndex] = data; //Set Data
     _RGBCounts[colorIndex] = 0; // Reset count
 
 }
 
-[numthreads(512,1,1)]
+[numthreads(32,32,1)]
 void WriteToRGBMap (uint3 id : SV_DispatchThreadID)
 {
-    uint index = id.x;
+
+
+    uint2 index = id.xy;
     uint total = _Width * _Height;
 
-    if (index >= total)
+    if(index.x >= _Width || index.y >= _Height)
     {
         return;
     }
 
 
-    //Get the Data from the _AllData Buffer
-    Data data = _AllData[index];
+    //Get the color from the Texture
+    float3 color = _Texture[index.xy].rgb;
+
 
     //Get the index from the color
-    int r = int(ceil(data.color.r * 255));
-    int g = int(ceil(data.color.g * 255));
-    int b = int(ceil(data.color.b * 255));
+    int r = int(ceil(color.r * 255));
+    int g = int(ceil(color.g * 255));
+    int b = int(ceil(color.b * 255));
 
     int colorIndex = b * 255 * 255 + g * 255 + r;
 
@@ -189,7 +162,7 @@ void MovePositionsRGB (uint3 id : SV_DispatchThreadID)
     float3 newPosition = lerp(origin, target, _T);
 
     Data updatedData;
-    updatedData.color = float4(newPosition.rgb, 1);
+    updatedData.color = data.color;
     updatedData.position = newPosition;
     updatedData.count = data.count;
 
