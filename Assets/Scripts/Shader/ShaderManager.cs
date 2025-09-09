@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public class ShaderManager : MonoBehaviour
 {
@@ -93,38 +94,20 @@ public class ShaderManager : MonoBehaviour
                 {
                     //When Texture is loaded apply Shader code on it 
                     inputTexture = TextureLoader.texture;
+                    Debug.Log("Texture Loaded");
 
                     //Update image related Variables 
                     textureWidth = inputTexture.width;
                     textureHeight = inputTexture.height;
                     totalPixelCount = textureWidth * textureHeight;
 
-
+                    //Assing static variables to the GPU
                     AssignShaderVariables();
 
-                    Debug.Log("Texture Loaded");
-                    //Release the old Buffers 
+                    //Make GPU dispatches
+                    PrecomputeColors();
 
 
-                    //Init the RGB Map
-                    InitRGBMap();
-                    Debug.Log("RGB Map filled");
-
-                    //Write to the RGB Map
-                    WriteRGBMap();
-                    Debug.Log("RGB Map Written to");
-
-
-                    //Filter the RGB Map
-                    FindUniqueRGBColors();
-                    Debug.Log("RGB Map Filtered");
-
-                    //Read back the number of unique RGB Values
-                    GetUniqueColorCount();
-                    Debug.Log("Unique RGB Colors: " + uniqueColorCount);
-
-                    InitWorkBuffers();
-                    Debug.Log("Init Movement Buffer");
 
                     imageLoaded = true;
                 }
@@ -152,10 +135,6 @@ public class ShaderManager : MonoBehaviour
         RenderSpheres();
 
 
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            DebugReadBack();
-        }
     }
 
 
@@ -184,6 +163,33 @@ public class ShaderManager : MonoBehaviour
         computeShader.GetKernelThreadGroupSizes(kernelID, out x, out y, out z);
 
         return new Vector3Int((int)x, (int)y, (int)z);
+    }
+
+
+    /// <summary>
+    /// Makes all the Precomputation Dispatches so that the animation can be displayed
+    /// </summary>
+    private void PrecomputeColors()
+    {
+        //Init the RGB Map
+        InitRGBMap();
+        Debug.Log("RGB Map filled");
+
+        //Write to the RGB Map
+        WriteRGBMap();
+        Debug.Log("RGB Map Written to");
+
+
+        //Filter the RGB Map
+        FindUniqueRGBColors();
+        Debug.Log("RGB Map Filtered");
+
+        //Read back the number of unique RGB Values
+        GetUniqueColorCount();
+        Debug.Log("Unique RGB Colors: " + uniqueColorCount);
+
+        InitWorkBuffers();
+        Debug.Log("Init Movement Buffer");
     }
 
 
@@ -494,20 +500,35 @@ public class ShaderManager : MonoBehaviour
 
 
 
-
-    private void DebugReadBack()
+    /// <summary>
+    /// Releases all used Buffers
+    /// </summary>
+    private void ReleaseBuffers()
     {
-        Data[] workData = new Data[uniqueColorCount];
-        workBuffer.GetData(workData);
-        Debug.Log("");
-    }
-    struct Data
-    {
-        public Vector4 color;
-        public Vector3 position;
-        public int count;
+        RGBMapBuffer?.Release();
+        RGBCountBuffer?.Release();
+        uniqueRGBBuffer?.Release();
+        uniqueRGBCountBuffer?.Release();
+        RGBReadBuffer?.Release();
+        HSVReadBuffer?.Release();
+        workBuffer?.Release();
+        argsBuffer?.Release();
+
+        RGBMapBuffer = null;
+        RGBCountBuffer = null;
+        uniqueRGBBuffer = null;
+        uniqueRGBCountBuffer = null;
+        RGBReadBuffer = null;
+        HSVReadBuffer = null;
+        workBuffer = null;
+        argsBuffer = null;
     }
 
+
+    void Oestroy()
+    {
+        ReleaseBuffers();
+    }
 
 
     /// <summary>
