@@ -3,6 +3,10 @@
 #pragma kernel FilterRGBMap
 #pragma kernel InitMovementBufferRGB
 #pragma kernel MovePositionsRGB
+#pragma kernel InitWorkBuffer
+#pragma kernel AnimateRGBtoHSV
+#pragma kernel AnimateHSVtoRGB
+
 // Inputs
 Texture2D<float4> _Texture;
 
@@ -17,8 +21,15 @@ RWStructuredBuffer<Data> _RGBMap; //255 * 255 * 255 entry for each RGB Value
 RWStructuredBuffer<uint> _RGBCounts; //Number of Colors in _AllData that have the same value size is also 255*255*255
 AppendStructuredBuffer<Data> _UniqueRGB;
 RWStructuredBuffer<float3> _TargetPositions;
-RWStructuredBuffer<Data> _CurrentData;
 StructuredBuffer<Data> _UniqueRGBRead;
+RWStructuredBuffer<Data> _FinalRGBRead;
+RWStructuredBuffer<Data> _FinalHSVRead;
+RWStructuredBuffer<Data> _WorkOnData;
+
+RWStructuredBuffer<Data> _CurrentData;
+
+
+
 // Variables for all kernels
 uint _Width;
 uint _Height;
@@ -56,10 +67,7 @@ void InitRGBMap (uint3 id : SV_DispatchThreadID)
 [numthreads(32,32,1)]
 void WriteToRGBMap (uint3 id : SV_DispatchThreadID)
 {
-
-
     uint2 index = id.xy;
-    uint total = _Width * _Height;
 
     if(index.x >= _Width || index.y >= _Height)
     {
@@ -168,4 +176,142 @@ void MovePositionsRGB (uint3 id : SV_DispatchThreadID)
 
     //Save the updated Data
     _CurrentData[index] = updatedData;
+}
+
+
+
+
+Data DataRGB(Data inputdata)
+{
+    Data data;
+    data.color = inputdata.color;
+    data.position = inputdata.color.rgb;
+    data.count = inputdata.count;
+
+    return data;
+}
+
+//converts a float3 rgb value to a float3 hcv value
+float3 RGBtoHCV(in float3 rgb)
+{
+    float epsilon = 0.0000000001;
+
+    // Based on work by Sam Hocevar and Emil Persson
+    float4 P = (rgb.g < rgb.b) ? float4(rgb.bg, - 1.0, 2.0 / 3.0) : float4(rgb.gb, 0.0, - 1.0 / 3.0);
+    float4 Q = (rgb.r < P.x) ? float4(P.xyw, rgb.r) : float4(rgb.r, P.yzx);
+    float C = Q.x - min(Q.w, Q.y);
+    float H = abs((Q.w - Q.y) / (6 * C + epsilon) + Q.z);
+    return float3(H, C, Q.x);
+}
+
+//converts a float3 rgb value to a float3 hsv value
+float3 RGBtoHSV(float3 rgb)
+{
+    float epsilon = 0.0000000001;
+    float3 HCV = RGBtoHCV(rgb);
+    float S = HCV.y / (HCV.z + epsilon);
+    return float3(HCV.x, S, HCV.z);
+}
+
+
+Data DataHSV(Data inputdata)
+{
+    Data data;
+    data.color = inputdata.color;
+    data.position = RGBtoHSV(inputdata.color.rgb);
+    data.count = inputdata.count;
+
+    return data;
+}
+
+
+[numthreads(512,1,1)]
+void InitWorkBuffer (uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    uint uniqueCount = _RGBCounts[0]; //Read how many values are in _UniqueRGBRead
+
+    if (index >= uniqueCount)
+    {
+        return;
+    }
+
+    //Read the Data that is being Copied
+    Data data = _UniqueRGBRead[index];
+
+    //Create the data in RGB and HSV format
+    Data dataRGB = DataRGB(data);
+    Data dataHSV = DataHSV(data);
+
+    //Copy the data to the final read buffers
+    _FinalRGBRead[index] = dataRGB;
+    _FinalHSVRead[index] = dataHSV;
+    _WorkOnData[index] = data;
+}
+
+
+
+[numthreads(512,1,1)]
+void AnimateRGBtoHSV (uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    uint uniqueCount = _RGBCounts[0]; //Read how many values are in _UniqueRGBRead
+
+    if (index >= uniqueCount)
+    {
+        return;
+    }
+
+    //Read target and Source Position
+    float3 targetPosition = _FinalHSVRead[index].position;
+    float3 originPosition = _FinalRGBRead[index].position;
+
+    //Calculate the new Position
+    float3 newPosition = lerp(originPosition, targetPosition, _T);
+
+
+    //Get the data that is currently worked on
+    Data data = _WorkOnData[index];
+
+    //Update the data
+    Data updatedData;
+    updatedData.color = data.color;
+    updatedData.position = newPosition;
+    updatedData.count = data.count;
+
+    //Save the updated Data
+    _WorkOnData[index] = updatedData;
+}
+
+
+[numthreads(512,1,1)]
+void AnimateHSVtoRGB (uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x;
+    uint uniqueCount = _RGBCounts[0]; //Read how many values are in _UniqueRGBRead
+
+    if (index >= uniqueCount)
+    {
+        return;
+    }
+
+    //Read target and Source Position
+    float3 targetPosition = _FinalRGBRead[index].position;
+    float3 originPosition = _FinalHSVRead[index].position;
+
+    //Calculate the new Position
+    float3 newPosition = lerp(originPosition, targetPosition, _T);
+
+
+    //Get the data that is currently worked on
+    Data data = _WorkOnData[index];
+
+    //Update the data
+    Data updatedData;
+    updatedData.color = data.color;
+    updatedData.position = newPosition;
+    updatedData.count = data.count;
+
+    //Save the updated Data
+    _WorkOnData[index] = updatedData;
 }

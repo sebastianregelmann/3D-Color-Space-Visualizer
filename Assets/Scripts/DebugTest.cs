@@ -63,9 +63,12 @@ public class DebugTest : MonoBehaviour
         kernelMovePositionsRGB = computeShader.FindKernel("MovePositionsRGB");
     }
     void Update()
-    { // Load texture 
+    {
+        // Load texture 
         if (Input.GetKeyDown(KeyCode.Space))
         {
+            imageLoaded = false;
+
             try
             {
                 TextureLoader.LoadTexture(); if (TextureLoader.textureLoaded)
@@ -309,13 +312,13 @@ public class DebugTest : MonoBehaviour
 
     void ReleaseAllBuffers()
     {
-        RGBCountBuffer?.Release();
-        RGBMapBuffer?.Release();
-        uniqueRGBBuffer?.Release();
-        argsBuffer?.Release();
-        countBuffer?.Release();
-        targetPositionsRGBBuffer?.Release();
-        currentDataRGBBuffer?.Release();
+        RGBCountBuffer?.Release(); RGBCountBuffer = null;
+        RGBMapBuffer?.Release(); RGBMapBuffer = null;
+        uniqueRGBBuffer?.Release(); uniqueRGBBuffer = null;
+        argsBuffer?.Release(); argsBuffer = null;
+        countBuffer?.Release(); countBuffer = null;
+        targetPositionsRGBBuffer?.Release(); targetPositionsRGBBuffer = null;
+        currentDataRGBBuffer?.Release(); currentDataRGBBuffer = null;
     }
 
     void OnDestroy()
