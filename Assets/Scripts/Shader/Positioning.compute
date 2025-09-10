@@ -1,11 +1,8 @@
 #pragma kernel InitRGBMap
 #pragma kernel WriteToRGBMap
 #pragma kernel FilterRGBMap
-#pragma kernel InitMovementBufferRGB
-#pragma kernel MovePositionsRGB
 #pragma kernel InitWorkBuffer
-#pragma kernel AnimateRGBtoHSV
-#pragma kernel AnimateHSVtoRGB
+#pragma kernel AnimatePositions
 
 // Inputs
 Texture2D<float4> _Texture;
@@ -34,6 +31,8 @@ RWStructuredBuffer<Data> _CurrentData;
 uint _Width;
 uint _Height;
 float _T;
+int _ColorSpace;
+int _AnimationDirection;
 
 
 
@@ -124,63 +123,7 @@ void FilterRGBMap (uint3 id : SV_DispatchThreadID)
 }
 
 
-[numthreads(512,1,1)]
-void InitMovementBufferRGB (uint3 id : SV_DispatchThreadID)
-{
-    uint index = id.x;
-    uint uniqueCount = _RGBCounts[0]; //Read how many values are in _UniqueRGBRead
-
-    if (index >= uniqueCount)
-    {
-        return;
-    }
-
-
-    //Init the Target Position Buffer
-    _TargetPositions[index] = float3(1, 1, 1);
-
-    Data data = _UniqueRGBRead[index];
-
-    //Copy the data to the other Buffer
-    Data currentData;
-    currentData.color = data.color;
-    currentData.position = data.position;
-    currentData.count = data.count;
-    _CurrentData[index] = currentData;
-}
-
-
-[numthreads(512,1,1)]
-void MovePositionsRGB (uint3 id : SV_DispatchThreadID)
-{
-    uint index = id.x;
-    uint uniqueCount = _RGBCounts[0]; //Read how many values are in _UniqueRGBRead
-
-    if (index >= uniqueCount)
-    {
-        return;
-    }
-
-    float3 target = _TargetPositions[index];
-    float3 origin = _UniqueRGBRead[index].position;
-
-    //Get the data
-    Data data = _CurrentData[index];
-    //Update the position
-    float3 newPosition = lerp(origin, target, _T);
-
-    Data updatedData;
-    updatedData.color = data.color;
-    updatedData.position = newPosition;
-    updatedData.count = data.count;
-
-    //Save the updated Data
-    _CurrentData[index] = updatedData;
-}
-
-
-
-
+//Creates a RGB Data struct
 Data DataRGB(Data inputdata)
 {
     Data data;
@@ -213,7 +156,7 @@ float3 RGBtoHSV(float3 rgb)
     return float3(HCV.x, S, HCV.z);
 }
 
-
+//Creates a HSV data struct
 Data DataHSV(Data inputdata)
 {
     Data data;
@@ -246,13 +189,23 @@ void InitWorkBuffer (uint3 id : SV_DispatchThreadID)
     //Copy the data to the final read buffers
     _FinalRGBRead[index] = dataRGB;
     _FinalHSVRead[index] = dataHSV;
-    _WorkOnData[index] = data;
+
+    if(_ColorSpace == 0)
+    {
+        _WorkOnData[index] = dataRGB;
+    }
+    else if(_ColorSpace == 1)
+    {
+        _WorkOnData[index] = dataHSV;
+    }
 }
 
 
 
+
+
 [numthreads(512,1,1)]
-void AnimateRGBtoHSV (uint3 id : SV_DispatchThreadID)
+void AnimatePositions (uint3 id : SV_DispatchThreadID)
 {
     uint index = id.x;
     uint uniqueCount = _RGBCounts[0]; //Read how many values are in _UniqueRGBRead
@@ -262,42 +215,24 @@ void AnimateRGBtoHSV (uint3 id : SV_DispatchThreadID)
         return;
     }
 
-    //Read target and Source Position
-    float3 targetPosition = _FinalHSVRead[index].position;
-    float3 originPosition = _FinalRGBRead[index].position;
+    float3 targetPosition;
+    float3 originPosition;
 
-    //Calculate the new Position
-    float3 newPosition = lerp(originPosition, targetPosition, _T);
-
-
-    //Get the data that is currently worked on
-    Data data = _WorkOnData[index];
-
-    //Update the data
-    Data updatedData;
-    updatedData.color = data.color;
-    updatedData.position = newPosition;
-    updatedData.count = data.count;
-
-    //Save the updated Data
-    _WorkOnData[index] = updatedData;
-}
-
-
-[numthreads(512,1,1)]
-void AnimateHSVtoRGB (uint3 id : SV_DispatchThreadID)
-{
-    uint index = id.x;
-    uint uniqueCount = _RGBCounts[0]; //Read how many values are in _UniqueRGBRead
-
-    if (index >= uniqueCount)
+    if(_AnimationDirection == 0)
     {
-        return;
+        targetPosition = _FinalHSVRead[index].position;
+        originPosition = _FinalRGBRead[index].position;
     }
-
-    //Read target and Source Position
-    float3 targetPosition = _FinalRGBRead[index].position;
-    float3 originPosition = _FinalHSVRead[index].position;
+    else if(_AnimationDirection == 1)
+    {
+        targetPosition = _FinalRGBRead[index].position;
+        originPosition = _FinalHSVRead[index].position;
+    }
+    else
+    {
+        targetPosition = 0;
+        originPosition = 0;
+    }
 
     //Calculate the new Position
     float3 newPosition = lerp(originPosition, targetPosition, _T);

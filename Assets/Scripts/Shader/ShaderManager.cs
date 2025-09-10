@@ -31,8 +31,7 @@ public class ShaderManager : MonoBehaviour
     private int kernelWriteRGBMap;
     private int kernelFindUniqueRGBColors;
     private int kernelInitWorkBuffer;
-    private int kernelAnimateRGBtoHSV;
-    private int kernelAnimateHSVtoRGB;
+    private int kernelAnimate;
 
     /// <summary>
     /// Compute Buffer needed
@@ -103,8 +102,7 @@ public class ShaderManager : MonoBehaviour
         kernelWriteRGBMap = computeShader.FindKernel("WriteToRGBMap");
         kernelFindUniqueRGBColors = computeShader.FindKernel("FilterRGBMap");
         kernelInitWorkBuffer = computeShader.FindKernel("InitWorkBuffer");
-        kernelAnimateRGBtoHSV = computeShader.FindKernel("AnimateRGBtoHSV");
-        kernelAnimateHSVtoRGB = computeShader.FindKernel("AnimateHSVtoRGB");
+        kernelAnimate = computeShader.FindKernel("AnimatePositions");
     }
 
 
@@ -316,6 +314,7 @@ public class ShaderManager : MonoBehaviour
         computeShader.SetBuffer(kernelInitWorkBuffer, "_FinalHSVRead", HSVReadBuffer);
         computeShader.SetBuffer(kernelInitWorkBuffer, "_WorkOnData", workBuffer);
 
+
         //Calculate the number of threads dispatched
         Vector3Int threadGroupSize = GetThreadGroupSize(kernelInitWorkBuffer);
         Vector3Int threadCount = new Vector3Int(Mathf.CeilToInt((float)uniqueColorCount / threadGroupSize.x), Mathf.CeilToInt(1f / threadGroupSize.y), Mathf.CeilToInt(1f / threadGroupSize.z));
@@ -333,6 +332,18 @@ public class ShaderManager : MonoBehaviour
     {
         computeShader.SetInt("_Width", textureWidth);
         computeShader.SetInt("_Height", textureHeight);
+
+
+        //Defines in which color space the init buffer works
+        switch (colorSpace)
+        {
+            case COLOR_SPACE.RGB:
+                computeShader.SetInt("_ColorSpace", 0);
+                break;
+            case COLOR_SPACE.HSV:
+                computeShader.SetInt("_ColorSpace", 1);
+                break;
+        }
     }
 
 
@@ -348,28 +359,29 @@ public class ShaderManager : MonoBehaviour
             throw new System.Exception("Buffers for AnimatePosition not initialized");
         }
 
-
-        int kernelID = animationDirection == ANIMATION_DIRECTION.RGBtoHSV ? kernelAnimateRGBtoHSV : kernelAnimateHSVtoRGB;
-
-
         //Assing Variables and Buffers for shader
-        computeShader.SetBuffer(kernelID, "_RGBCounts", uniqueRGBCountBuffer);
-        computeShader.SetBuffer(kernelID, "_FinalRGBRead", RGBReadBuffer);
-        computeShader.SetBuffer(kernelID, "_FinalHSVRead", HSVReadBuffer);
-        computeShader.SetBuffer(kernelID, "_WorkOnData", workBuffer);
+        computeShader.SetBuffer(kernelAnimate, "_RGBCounts", uniqueRGBCountBuffer);
+        computeShader.SetBuffer(kernelAnimate, "_FinalRGBRead", RGBReadBuffer);
+        computeShader.SetBuffer(kernelAnimate, "_FinalHSVRead", HSVReadBuffer);
+        computeShader.SetBuffer(kernelAnimate, "_WorkOnData", workBuffer);
 
 
         //Asing Animation time 
         computeShader.SetFloat("_T", _t);
 
 
+        //Assing Animation direction
+        int direction = animationDirection == ANIMATION_DIRECTION.RGBtoHSV ? 0 : 1;
+        computeShader.SetInt("_AnimationDirection", direction);
+
+
         //Calculate the number of threads dispatched
-        Vector3Int threadGroupSize = GetThreadGroupSize(kernelID);
+        Vector3Int threadGroupSize = GetThreadGroupSize(kernelAnimate);
         Vector3Int threadCount = new Vector3Int(Mathf.CeilToInt((float)uniqueColorCount / threadGroupSize.x), Mathf.CeilToInt(1f / threadGroupSize.y), Mathf.CeilToInt(1f / threadGroupSize.z));
 
 
         //Dispatch the shader
-        computeShader.Dispatch(kernelID, threadCount.x, threadCount.y, threadCount.z);
+        computeShader.Dispatch(kernelAnimate, threadCount.x, threadCount.y, threadCount.z);
     }
 
 

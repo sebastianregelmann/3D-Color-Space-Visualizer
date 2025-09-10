@@ -76,16 +76,10 @@ public class UIManager : MonoBehaviour
 
         //Set the loaded Texture as the texture for the imageObject        
         Texture2D texture = shaderManager.GetImageTexture();
-        UnityEngine.UI.Image image = imageObject.GetComponent<UnityEngine.UI.Image>();
+        UnityEngine.UI.RawImage image = imageObject.GetComponent<UnityEngine.UI.RawImage>();
         if (texture != null)
         {
-            Sprite newSprite = Sprite.Create(
-                texture,
-                new Rect(0, 0, texture.width, texture.height),
-                new Vector2(0.5f, 0.5f) // center pivot
-            );
-
-            image.sprite = newSprite;
+            image.texture = texture;
         }
     }
 
