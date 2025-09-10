@@ -8,6 +8,9 @@ public static class TextureLoader
 
     public static void LoadTexture()
     {
+
+        ClearTexture();
+
         var extensions = new[] {
             new ExtensionFilter("Image Files", "png", "jpg", "jpeg"),
         };

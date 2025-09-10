@@ -15,13 +15,14 @@ public class ShaderManager : MonoBehaviour
 
 
     [Header("Animation Settings")]
-    public float scale = 0.1f;
-
     public float animationTime;
+    private float scale = 0.5f;
     private float timer = 0f;
     private float _t = 0f;
     public bool startAnimation = false;
     private bool animationRunning = false;
+    private ANIMATION_DIRECTION animationDirection = ANIMATION_DIRECTION.HSVtoRGB;
+    private COLOR_SPACE colorSpace = COLOR_SPACE.RGB;
 
     /// <summary>
     /// Kernel IDs
@@ -58,12 +59,6 @@ public class ShaderManager : MonoBehaviour
     private int dataSize;
 
 
-    [Header("Debug")]
-    ANIMATION_DIRECTION animationDirection = ANIMATION_DIRECTION.RGBtoHSV;
-
-
-
-
     // Start is called before the first frame update
     void Start()
     {
@@ -81,46 +76,7 @@ public class ShaderManager : MonoBehaviour
         // Load texture 
         if (Input.GetKeyDown(KeyCode.Space))
         {
-            //Reset data load flag
-            imageLoaded = false;
-
-            //Release the args buffer
-            argsBuffer?.Release();
-            argsBuffer = null;
-
-            try
-            {
-                TextureLoader.LoadTexture(); if (TextureLoader.textureLoaded)
-                {
-                    //When Texture is loaded apply Shader code on it 
-                    inputTexture = TextureLoader.texture;
-                    Debug.Log("Texture Loaded");
-
-                    //Update image related Variables 
-                    textureWidth = inputTexture.width;
-                    textureHeight = inputTexture.height;
-                    totalPixelCount = textureWidth * textureHeight;
-
-                    //Assing static variables to the GPU
-                    AssignShaderVariables();
-
-                    //Make GPU dispatches
-                    PrecomputeColors();
-
-
-
-                    imageLoaded = true;
-                }
-                else
-                {
-                    throw new System.Exception("No Error at texture load but boolean not set");
-                }
-            }
-            catch (System.Exception e)
-            {
-                Debug.Log("Can't load Texture: " + e.ToString());
-                imageLoaded = false;
-            }
+            LoadImage();
         }
 
         UpdateAnimationTime();
@@ -433,16 +389,6 @@ public class ShaderManager : MonoBehaviour
             animationRunning = false;
             timer = 0;
             _t = 0;
-            //Debug Switch the animation direction
-            switch (animationDirection)
-            {
-                case ANIMATION_DIRECTION.RGBtoHSV:
-                    animationDirection = ANIMATION_DIRECTION.HSVtoRGB;
-                    break;
-                case ANIMATION_DIRECTION.HSVtoRGB:
-                    animationDirection = ANIMATION_DIRECTION.RGBtoHSV;
-                    break;
-            }
         }
 
 
@@ -469,7 +415,7 @@ public class ShaderManager : MonoBehaviour
     /// <summary>
     /// Sends a instance Draw command to the GPU based on the data in workBuffer
     /// </summary>
-    void RenderSpheres()
+    private void RenderSpheres()
     {
         //Exit early if image is not loaded
         if (imageLoaded == false || uniqueColorCount <= 0)
@@ -525,19 +471,150 @@ public class ShaderManager : MonoBehaviour
     }
 
 
-    void Oestroy()
+    void OnDestroy()
     {
         ReleaseBuffers();
     }
 
 
+
     /// <summary>
-    /// Enum for the animation Direction
+    /// Loads image and precomputes Data on the GPU
     /// </summary>
-    private enum ANIMATION_DIRECTION
+    public void LoadImage()
     {
-        RGBtoHSV,
-        HSVtoRGB,
+        //Reset data load flag
+        imageLoaded = false;
+
+        //Release the args buffer
+        argsBuffer?.Release();
+        argsBuffer = null;
+
+        try
+        {
+            TextureLoader.LoadTexture();
+            if (TextureLoader.textureLoaded)
+            {
+                //When Texture is loaded apply Shader code on it 
+                inputTexture = TextureLoader.texture;
+                Debug.Log("Texture Loaded");
+
+                //Update image related Variables 
+                textureWidth = inputTexture.width;
+                textureHeight = inputTexture.height;
+                totalPixelCount = textureWidth * textureHeight;
+
+                //Assing static variables to the GPU
+                AssignShaderVariables();
+
+                //Make GPU dispatches
+                PrecomputeColors();
+
+                imageLoaded = true;
+            }
+            else
+            {
+                throw new System.Exception("No Error at texture load but boolean not set");
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.Log("Can't load Texture: " + e.ToString());
+            imageLoaded = false;
+        }
     }
 
+
+
+    /// <summary>
+    /// Get Method 
+    /// </summary>
+    public bool GetImageLoaded()
+    {
+        return imageLoaded;
+    }
+
+
+    public Texture2D GetImageTexture()
+    {
+        return inputTexture;
+    }
+
+
+    public float GetScale()
+    {
+        return scale;
+    }
+
+
+    public bool ReadyForAnimation()
+    {
+        return !animationRunning;
+    }
+
+    public COLOR_SPACE GetColorSpace()
+    {
+        return colorSpace;
+    }
+
+
+    /// <summary>
+    /// Set Methods
+    /// </summary>
+    public void SetScale(float newScale)
+    {
+        scale = newScale;
+    }
+
+
+    /// <summary>
+    /// Sets the animation flag and changes the Animation direction and color Space
+    /// </summary>
+    public void StartAnimation()
+    {
+        //Switch the animation direction
+        switch (colorSpace)
+        {
+            case COLOR_SPACE.RGB:
+                animationDirection = ANIMATION_DIRECTION.RGBtoHSV;
+                break;
+            case COLOR_SPACE.HSV:
+                animationDirection = ANIMATION_DIRECTION.HSVtoRGB;
+                break;
+        }
+
+        //Switch the Color Space
+        switch (animationDirection)
+        {
+            case ANIMATION_DIRECTION.RGBtoHSV:
+                colorSpace = COLOR_SPACE.HSV;
+                break;
+            case ANIMATION_DIRECTION.HSVtoRGB:
+                colorSpace = COLOR_SPACE.RGB;
+                break;
+        }
+
+        //Set flag to start the animation
+        startAnimation = true;
+    }
+}
+
+
+/// <summary>
+/// Enum for the animation Direction
+/// </summary>
+public enum ANIMATION_DIRECTION
+{
+    RGBtoHSV,
+    HSVtoRGB,
+}
+
+
+/// <summary>
+/// Enum wich Color space is currently active
+/// </summary>
+public enum COLOR_SPACE
+{
+    RGB,
+    HSV,
 }
