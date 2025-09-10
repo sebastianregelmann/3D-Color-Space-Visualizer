@@ -8,7 +8,6 @@ public class ShaderManager : MonoBehaviour
 
     [Header("References")]
     public ComputeShader computeShader;
-    public Texture2D inputTexture;
     public Material instancedMaterial;
     public Mesh mesh;
 
@@ -19,7 +18,7 @@ public class ShaderManager : MonoBehaviour
     private float scale = 0.5f;
     private float timer = 0f;
     private float _t = 0f;
-    public bool startAnimation = false;
+    private bool startAnimation = false;
     private bool animationRunning = false;
     private ANIMATION_DIRECTION animationDirection = ANIMATION_DIRECTION.HSVtoRGB;
     private COLOR_SPACE colorSpace = COLOR_SPACE.RGB;
@@ -38,6 +37,8 @@ public class ShaderManager : MonoBehaviour
     /// </summary>
 
     //Buffers for tracking the number of pixels with the same color
+    private Texture2D inputTexture;
+
     private ComputeBuffer RGBMapBuffer;
     private ComputeBuffer RGBCountBuffer;
     private ComputeBuffer uniqueRGBBuffer;
