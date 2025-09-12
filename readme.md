@@ -13,9 +13,9 @@ This project is an application developed in Unity to visualize the pixel of an i
 <div align="center">
     <img src="PreviewImages/Preview_1_HSV.png" alt="Logo" width="auto" height="auto">
 </div>
-<br/> 
-<br/> 
 1. RGB test image in HSV space
+<br/> 
+<br/> 
 <div align="center">
     <img src="PreviewImages/Preview_2_RGB.png" alt="Logo" width="auto" height="auto">
 </div>
