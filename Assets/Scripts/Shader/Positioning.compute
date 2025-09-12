@@ -215,6 +215,7 @@ void AnimatePositions (uint3 id : SV_DispatchThreadID)
         return;
     }
 
+    
     float3 targetPosition;
     float3 originPosition;
 
