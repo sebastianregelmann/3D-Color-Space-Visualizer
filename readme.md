@@ -59,7 +59,7 @@ If you want to work on the project yourself you need to do the following:
 ## Usage
 
 ### Installation
-If you just want to use the application, download the correct version for your OS from <a href="https://github.com/gkngkc/UnityStandaloneFileBrowser">here</a> and run the application. 
+If you just want to use the application, download the correct version for your OS from <a href="https://github.com/sebastianregelmann/3D-Color-Space-Visualizer/releases">here</a> and run the application. 
 
 In <a href="Assets/Test_Images">this folder</a> are some example images to test the application. 
 1. Grey scale colors
@@ -202,6 +202,6 @@ This kernel reads every entry in the `_RGBCounts` buffer and if the entry has a 
 <!-- LICENSE -->
 # License
 
-Distributed under the MIT License. See <a href="https://github.com/gkngkc/UnityStandaloneFileBrowser">`LICENCE.txt`</a> for more information.
+Distributed under the MIT License. See <a href="https://github.com/sebastianregelmann/3D-Color-Space-Visualizer">`LICENCE.txt`</a> for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
